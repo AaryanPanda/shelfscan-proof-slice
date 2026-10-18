@@ -1,0 +1,11 @@
+{
+  "name": "shelfscan-proof-slice",
+  "version": "1.0.0",
+  "description": "AI integration proof slice — model suggests, code validates, fallback handles failure, real data stays protected.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "node test.js"
+  },
+  "license": "MIT"
+}
