@@ -30,9 +30,16 @@ does not actually appear in the note.
 | Requirement | Where | What it does |
 |---|---|---|
 | **Boundary** — model decides vs. app decides | `buildContext()`, `callModel()`, `approveAndApply()` | The model only *suggests* `item` / `action` / `quantity`. It performs no writes. Applying to real inventory is gated behind an explicit human approver. |
-| **Validation** before trusting output | `isValid()` | Checks: parseable JSON → object shape → known item → allowed action → quantity rules, including rejecting a `restock` quantity that was **never stated in the note** (the invented-number bug), and requiring `null` for `discontinue`/`hold`. |
-| **Fallback** for failure/invalid output | `fallback()` | On any validation failure the slice does not guess and does not write; it stages a safe `needs_review` record carrying the reason it wasn't trusted. |
-| **Separation** — AI output kept off real data | `pendingSuggestions` vs `inventory`, `stageSuggestion()` | Every AI result (valid or fallback) lands in a separate staging area. `inventory` is never written by the model — `node index.js` prints `on_hand` unchanged. |
+| **Validation** before trusting output | `isValid()`, `extractStatedNumbers()` | Strict checks: parseable JSON → plain object → **no unexpected keys and no missing keys** → known item → allowed action → quantity rules. For `restock`, the quantity must be an integer **within a defined range `[1, 10000]`** and must be a number **actually stated in the note**, matched by precise parsing that ignores decimal fragments (`2.200` ≠ `200`) and numbers glued to other tokens. `discontinue`/`hold` require `null`. |
+| **Fallback** for failure/invalid output | `fallback()`, `processNote()` try/catch | On any validation failure **or a thrown model error** (the `callModel` call is wrapped), the slice does not guess and does not write; it stages a safe `needs_review` record carrying the reason. |
+| **Separation** — AI output kept off real data | `pendingSuggestions` vs `inventory`, `stageSuggestion()`, `resolveApprover()` | Every AI result (valid or fallback) lands in a separate staging area. `inventory` is never written by the model — `node index.js` prints `on_hand` unchanged. Applying a suggestion requires a **known approver with an approving role** (`resolveApprover()` checks an allow-list) — not "any truthy string". |
+
+## Hardening (from review feedback)
+- **Unexpected / missing keys** rejected — the output must have exactly `item`, `action`, `quantity`.
+- **Quantity range** `[1, 10000]` enforced — no unbounded quantities.
+- **Precise note parsing** (`extractStatedNumbers`) — a quantity counts as "stated" only if it is a standalone whole number in the note; `200` inside `2.200`, or glued numbers, no longer count.
+- **Thrown model errors** caught in `processNote` and routed through the same `fallback`.
+- **Approver check** is an allow-list + role check, not a truthy test.
 
 ## Secrets
 
